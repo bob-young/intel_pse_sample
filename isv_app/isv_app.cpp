@@ -23,6 +23,9 @@
 #define LISTEN_PORT 84 //server port
 #define REV 1024*1024
 #define RECEIVE 512
+#define SEND 512
+
+
 char* resp="OK";
 char* start_msg="_START_";
 //@sockfd :client socket 
@@ -33,15 +36,32 @@ char* str_read(int sockfd)
     char line[RECEIVE];
 	char* instream=(char*)malloc(sizeof(char)*REV);
     //printf("ready to read\n");
-    while( (n=read(sockfd,line,RECEIVE))>0 )
+    if( (n=recv(sockfd,line,RECEIVE,0))>0 )
     {
-            line[n]='\0';
-			strcat(instream,line);
-            bzero(&line,sizeof(line));
+        printf("merge read\n");
+        line[n]='\0';
+		strcat(instream,line);
+        bzero(&line,sizeof(line));
     }
+    printf("read ok\n");
 	return instream;   
 }
-
+//----------------------------------------------------
+int str_write(char *data,int sockfd,int len)
+{
+    ssize_t ret =send(sockfd,data,len,0);
+    if(ret == -1){
+        printf("sending message error: %s\n",(char*)strerror(errno));
+        return -1;
+    }else if(ret >= 0){
+        printf("send data bytes %ld\n",ret);
+        return 0;
+    }else{
+        printf("unknow error!\n");  
+    }
+    return -1;
+}
+//----------------------------------------------------
 //server configratuon end
 
 // Needed for definition of remote attestation messages.
@@ -76,7 +96,16 @@ char* str_read(int sockfd)
 
 #define ENCLAVE_PATH "isv_enclave.signed.so"
 
-
+int ra_network_send(int sockfd,ra_samp_request_header_t* request,int len)
+{
+    char tmp[SEND];
+    memcpy(tmp,request,len);
+    str_write(tmp,sockfd,len);
+    //char* in_data = str_read(sockfd);
+    //memcpy(response,in_data);
+    //printf("%s\n",response->body);
+    return 1;
+}
 
 
 uint8_t* msg1_samples[] = { msg1_sample1, msg1_sample2 };
@@ -107,22 +136,7 @@ void PRINT_BYTE_ARRAY(
     fprintf(file, "\n}\n");
 }
 
-//----------------------------------------------------
-int str_write(char *data,int sockfd)
-{
-    ssize_t ret =write(sockfd,data,strlen((char*)data));
-	if(ret == -1){
-		printf("sending message error: %s\n",(char*)strerror(errno));
-		return -1;
-	}else if(ret >= 0){
-		printf("send data bytes %ld\n",ret);
-		return 0;
-	}else{
-		printf("unknow error!\n");	
-	}
-    return -1;
-}
-//-----------------------------------------------------
+
 
 
 void PRINT_ATTESTATION_SERVICE_RESPONSE(
@@ -195,7 +209,7 @@ void PRINT_ATTESTATION_SERVICE_RESPONSE(
 // susceptible to S3 transitions should have logic to restart attestation in
 // these scenarios.
 #define _T(x) x
-int isv_app(int argc, char* argv[])
+int isv_app(int argc, int sockfd)
 {
     int ret = 0;
     ra_samp_request_header_t *p_msg0_full = NULL;
@@ -220,37 +234,37 @@ int isv_app(int argc, char* argv[])
                                        verify_index <= verification_samples)
 #define GET_VERIFICATION_ARRAY_INDEX() (verify_index-1)
 
-    if(argc > 1)
-    {
+    // if(argc > 1)
+    // {
 
-        verify_index = atoi(argv[1]);
+    //     verify_index = atoi(argv[1]);
 
-        if( VERIFICATION_INDEX_IS_VALID())
-        {
-            fprintf(OUTPUT, "\nVerifying precomputed attestation messages "
-                            "using precomputed values# %d\n", verify_index);
-        }
-        else
-        {
-            fprintf(OUTPUT, "\nValid invocations are:\n");
-            fprintf(OUTPUT, "\n\tisv_app\n");
-            fprintf(OUTPUT, "\n\tisv_app <verification index>\n");
-            fprintf(OUTPUT, "\nValid indices are [1 - %d]\n",
-                    verification_samples);
-            fprintf(OUTPUT, "\nUsing a verification index uses precomputed "
-                    "messages to assist debugging the remote attestation "
-                    "service provider.\n");
-            return -1;
-        }
-    }
+    //     if( VERIFICATION_INDEX_IS_VALID())
+    //     {
+    //         fprintf(OUTPUT, "\nVerifying precomputed attestation messages "
+    //                         "using precomputed values# %d\n", verify_index);
+    //     }
+    //     else
+    //     {
+    //         fprintf(OUTPUT, "\nValid invocations are:\n");
+    //         fprintf(OUTPUT, "\n\tisv_app\n");
+    //         fprintf(OUTPUT, "\n\tisv_app <verification index>\n");
+    //         fprintf(OUTPUT, "\nValid indices are [1 - %d]\n",
+    //                 verification_samples);
+    //         fprintf(OUTPUT, "\nUsing a verification index uses precomputed "
+    //                 "messages to assist debugging the remote attestation "
+    //                 "service provider.\n");
+    //         return -1;
+    //     }
+    // }
 
     // Preparation for remote attestation by configuring extended epid group id.
     {
         uint32_t extended_epid_group_id = 71;
-	printf("1.epid_group_id:%d\n",extended_epid_group_id);
+        printf("1.epid_group_id:%d\n",extended_epid_group_id);
         ret = SGX_SUCCESS;
-	ret=sgx_get_extended_epid_group_id(&extended_epid_group_id);
-	printf("2.epid_group_id:%d\n",extended_epid_group_id);
+        ret=sgx_get_extended_epid_group_id(&extended_epid_group_id);
+        printf("2.epid_group_id:%d\n",extended_epid_group_id);
         if (SGX_SUCCESS != ret)
         {
             ret = -1;
@@ -276,7 +290,7 @@ int isv_app(int argc, char* argv[])
         {
 
             fprintf(OUTPUT, "\nMSG0 body generated -\n");
-	    printf("MSG0 size :%d\n",p_msg0_full->size);
+            printf("MSG0 size :%d\n",p_msg0_full->size);
             PRINT_BYTE_ARRAY(OUTPUT, p_msg0_full->body, p_msg0_full->size);
 
         }
@@ -284,10 +298,11 @@ int isv_app(int argc, char* argv[])
         // The ISV decides whether to support this extended epid group id.
         fprintf(OUTPUT, "\nSending msg0 to remote attestation service provider.\n");
 //------------------------------------------------------------------------------------------------------------
-	p_msg0_resp_full=(ra_samp_response_header_t*)malloc(sizeof(ra_samp_response_header_t)+sizeof(uint32_t));
+        p_msg0_resp_full=(ra_samp_response_header_t*)malloc(sizeof(ra_samp_response_header_t)+sizeof(uint32_t));
         ret = ra_network_send_receive("http://SampleServiceProvider.intel.com/",
             p_msg0_full,
             &p_msg0_resp_full);
+
 //-----------------------------------------------------------------------------------------------------------
 	printf("\nreceive from intel:\n");
 	//PRINT_BYTE_ARRAY(OUTPUT, p_msg0_resp_full->body, 1);
@@ -798,20 +813,35 @@ int main(int argc, char **argv)
             close(listenfd);
             printf("thread %d :client from %s\n",childpid,inet_ntoa(chiaddr.sin_addr));
 			//------------------------------prefix---------------------------
-			if(str_write(start_msg,connfd)<0){//send start
+			if(str_write(start_msg,connfd,strlen(start_msg))<0){//send start
 				printf("send start error\n");
 				exit(0);
 			}else{
 				printf("request client\n");
 			}
+            //sleep(5);
             char* instream = str_read(connfd);
 			printf("end read:%s\n",instream);
 			instream[2]='\0';
 			if(0==strcmp(instream,resp)){//receive ok
 				printf("resp::%s\n",instream);
-				//isv_app();
+				//isv_app(1,connfd);
+                ra_samp_request_header_t* samp;
+                samp = (ra_samp_request_header_t*)malloc(sizeof(ra_samp_request_header_t)+sizeof(uint32_t));
+                samp->type='a';
+                samp->size=4;
+                char ppp[]="ms";
+                char pppp[]="123";
+                strcpy((char*)samp->align,ppp);
+                strcpy((char*)samp->body,pppp);
+                ra_network_send(connfd,samp,sizeof(ra_samp_request_header_t)+samp->size);
+
+            // char* aaa="this is a test";
+            // str_write(aaa,connfd,strlen(aaa));
+            // printf("read=%s\n",str_read(connfd));
+
 			}
-			printf("resp::%s\n",instream);
+			//printf("resp::%s\n",instream);
 			free(instream);
             exit(0);    
         }
