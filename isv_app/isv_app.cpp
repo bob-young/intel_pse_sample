@@ -24,25 +24,25 @@
 #define REV 1024*1024
 #define RECEIVE 512
 #define SEND 512
-
+typedef unsigned char byte;
 
 char* resp="OK";
 char* start_msg="_START_";
 //@sockfd :client socket 
 //@len :receive byte length
 //@return : char* ptr of the instream
-char* str_read(int sockfd,int* len)
+byte* str_read(int sockfd,int* len)
 {
     ssize_t n;
     char line[RECEIVE];
-	char* instream=(char*)malloc(sizeof(char)*REV);
+	byte* instream=(byte*)malloc(sizeof(char)*REV);
     //printf("ready to read\n");
     if( (n=recv(sockfd,line,RECEIVE,0))>0 )
     {
         printf("merge read\n");
         line[n]='\0';
         *len=n;
-		strcat(instream,line);
+		memcpy(instream,line,n);
         bzero(&line,sizeof(line));
     }
     printf("read ok\n");
@@ -117,12 +117,20 @@ int ra_network_send(int sockfd,ra_samp_request_header_t* request,int len)
 }
 
 
-int yyb_network_send_receive(const char *server_url,
-    const ra_samp_request_header_t *p_req,
-    ra_samp_response_header_t **p_resp)
+int yyb_network_send_receive(int sockfd,const char *server_url,
+    ra_samp_request_header_t *p_req,
+    ra_samp_response_header_t *p_resp)
 {
+    ra_network_send(sockfd,p_req,sizeof(ra_samp_request_header_t)+p_req->size);
 
+    int *read_len=(int*)malloc(sizeof(int));
+    byte* in_data = str_read(sockfd,read_len);
+    printf("readlength:%d\n",*read_len);
+    memcpy(p_resp,in_data,*read_len);
 }
+
+
+
 uint8_t* msg1_samples[] = { msg1_sample1, msg1_sample2 };
 uint8_t* msg2_samples[] = { msg2_sample1, msg2_sample2 };
 uint8_t* msg3_samples[MSG3_BODY_SIZE] = { msg3_sample1, msg3_sample2 };
@@ -836,21 +844,28 @@ int main(int argc, char **argv)
 			}
             //sleep(5);
             int *ok_len=(int*)malloc(sizeof(int));
-            char* instream = str_read(connfd,ok_len);
+            byte* instream = str_read(connfd,ok_len);
 			printf("end read:%s\n",instream);
 			instream[2]='\0';
-			if(0==strcmp(instream,resp)){//receive ok
+			if(0==strcmp((char*)instream,resp)){//receive ok
 				printf("resp::%s\n",instream);
 				//isv_app(1,connfd);
                 ra_samp_request_header_t* samp;
                 samp = (ra_samp_request_header_t*)malloc(sizeof(ra_samp_request_header_t)+sizeof(uint32_t));
                 samp->type='a';
                 samp->size=4;
-                char ppp[]="ms";
-                char pppp[]="123";
+                char ppp[]="re";
+                char pppp[]="req";
                 strcpy((char*)samp->align,ppp);
                 strcpy((char*)samp->body,pppp);
-                ra_network_send(connfd,samp,sizeof(ra_samp_request_header_t)+samp->size);
+                ra_samp_response_header_t* response=
+                    (ra_samp_response_header_t*)malloc(sizeof(ra_samp_response_header_t)+4);
+                yyb_network_send_receive(connfd,"www.yyb.com",samp,response);
+                for(int mm=0;mm<12;mm++)
+                {
+                    printf("%c",((char*)response)[mm]);
+                }
+                printf("\nresponse:type->%c,body->%s\n", response->type,response->body);
 
             // char* aaa="this is a test";
             // str_write(aaa,connfd,strlen(aaa));
