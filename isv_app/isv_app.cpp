@@ -29,8 +29,9 @@
 char* resp="OK";
 char* start_msg="_START_";
 //@sockfd :client socket 
+//@len :receive byte length
 //@return : char* ptr of the instream
-char* str_read(int sockfd)
+char* str_read(int sockfd,int* len)
 {
     ssize_t n;
     char line[RECEIVE];
@@ -40,6 +41,7 @@ char* str_read(int sockfd)
     {
         printf("merge read\n");
         line[n]='\0';
+        *len=n;
 		strcat(instream,line);
         bzero(&line,sizeof(line));
     }
@@ -47,6 +49,10 @@ char* str_read(int sockfd)
 	return instream;   
 }
 //----------------------------------------------------
+//@data : stream wait to be send
+//@sockfd : client sock
+//@len : length of data
+//@return :state 0 success
 int str_write(char *data,int sockfd,int len)
 {
     ssize_t ret =send(sockfd,data,len,0);
@@ -95,7 +101,10 @@ int str_write(char *data,int sockfd,int len)
 
 
 #define ENCLAVE_PATH "isv_enclave.signed.so"
-
+//@sockfd :socket
+//@request : request header
+//@len :length of request
+//@return
 int ra_network_send(int sockfd,ra_samp_request_header_t* request,int len)
 {
     char tmp[SEND];
@@ -108,6 +117,12 @@ int ra_network_send(int sockfd,ra_samp_request_header_t* request,int len)
 }
 
 
+int yyb_network_send_receive(const char *server_url,
+    const ra_samp_request_header_t *p_req,
+    ra_samp_response_header_t **p_resp)
+{
+
+}
 uint8_t* msg1_samples[] = { msg1_sample1, msg1_sample2 };
 uint8_t* msg2_samples[] = { msg2_sample1, msg2_sample2 };
 uint8_t* msg3_samples[MSG3_BODY_SIZE] = { msg3_sample1, msg3_sample2 };
@@ -820,7 +835,8 @@ int main(int argc, char **argv)
 				printf("request client\n");
 			}
             //sleep(5);
-            char* instream = str_read(connfd);
+            int *ok_len=(int*)malloc(sizeof(int));
+            char* instream = str_read(connfd,ok_len);
 			printf("end read:%s\n",instream);
 			instream[2]='\0';
 			if(0==strcmp(instream,resp)){//receive ok
