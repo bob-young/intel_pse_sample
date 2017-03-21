@@ -322,9 +322,9 @@ int isv_app(int argc, int sockfd)
         fprintf(OUTPUT, "\nSending msg0 to remote attestation service provider.\n");
 //------------------------------------------------------------------------------------------------------------
         p_msg0_resp_full=(ra_samp_response_header_t*)malloc(sizeof(ra_samp_response_header_t)+sizeof(uint32_t));
-        ret = ra_network_send_receive("http://SampleServiceProvider.intel.com/",
+        ret = yyb_network_send_receive(sockfd,"http://www.yyb.com/",
             p_msg0_full,
-            &p_msg0_resp_full);
+            p_msg0_resp_full);
 
 //-----------------------------------------------------------------------------------------------------------
 	printf("\nreceive from intel:\n");
@@ -436,9 +436,9 @@ int isv_app(int argc, int sockfd)
                         "Expecting msg2 back.\n");
 
 
-        ret = ra_network_send_receive("http://SampleServiceProvider.intel.com/",
+        ret = yyb_network_send_receive(sockfd,"http://SampleServiceProvider.intel.com/",
                                       p_msg1_full,
-                                      &p_msg2_full);
+                                      p_msg2_full);
 
         if(ret != 0 || !p_msg2_full)
         {
@@ -621,9 +621,9 @@ int isv_app(int argc, int sockfd)
         // demonstration.  Note that the attestation result message makes use
         // of both the MK for the MAC and the SK for the secret. These keys are
         // established from the SIGMA secure channel binding.
-        ret = ra_network_send_receive("http://SampleServiceProvider.intel.com/",
+        ret = yyb_network_send_receive(sockfd,"http://SampleServiceProvider.intel.com/",
                                       p_msg3_full,
-                                      &p_att_result_msg_full);
+                                      p_att_result_msg_full);
         if(ret || !p_att_result_msg_full)
         {
             ret = -1;
@@ -850,6 +850,7 @@ int main(int argc, char **argv)
 			if(0==strcmp((char*)instream,resp)){//receive ok
 				printf("resp::%s\n",instream);
 				//isv_app(1,connfd);
+                
                 ra_samp_request_header_t* samp;
                 samp = (ra_samp_request_header_t*)malloc(sizeof(ra_samp_request_header_t)+sizeof(uint32_t));
                 samp->type='a';
@@ -866,7 +867,7 @@ int main(int argc, char **argv)
                     printf("%c",((char*)response)[mm]);
                 }
                 printf("\nresponse:type->%c,body->%s\n", response->type,response->body);
-
+                
             // char* aaa="this is a test";
             // str_write(aaa,connfd,strlen(aaa));
             // printf("read=%s\n",str_read(connfd));
