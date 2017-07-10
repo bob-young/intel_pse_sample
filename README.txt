@@ -1,4 +1,6 @@
 ----------------------------
+Remote Attestation version: ra 1.4
+----------------------------
 Purpose of RemoteAttestation
 ----------------------------
 The project demonstrates:
@@ -25,3 +27,18 @@ How to Build/Execute the Sample Code
 3. Execute the binary directly:
     $ ./app
 4. Remember to "make clean" before switching build mode
+
+-------------------------------------
+Usage of this sample
+-------------------------------------
+1.ISV :
+	a.ISV work as a server,listen at localhost:84(this can be changed in isv_app/isv_app.cpp)
+	b.if you meet the / permission denied / ,please use 
+		$sudo ./ISV
+
+2.ServiceProvider
+	a.ServiceProvider work as a client
+	b.you should input ServiceProvider IP PORT (*message)
+		$./ServiceProvider 1 84 
+
+
